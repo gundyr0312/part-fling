@@ -6,26 +6,26 @@ local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 
--- CONFIGURACIÓN: CENTRIFUGE OVERKILL (DISTANCIA 1)
+-- CONFIGURACIÓN (Lógica Overkill Integrada)
 local settings = {
-    force = 2500,
+    force = 2200,
     radius = 700,
-    prediction = 0.18, 
-    maxParts = 130, 
+    prediction = 0.15, 
+    maxParts = 140, 
     scanRate = 0.2,
     safeDistance = 25,
-    orbitDist = 1,        -- Órbita pegada
-    rotationSpeed = 30,   -- Giro del torbellino
-    selfSpinSpeed = 500   -- Giro individual masivo
+    orbitDist = 1,        -- Distancia de órbita pedida
+    rotationSpeed = 30,   -- Velocidad del torbellino
+    targetName = ""
 }
 
 local parts = {}
 local targetPlayer = nil
 local enabled = false
 local lastScan = 0
-local angle = 0
+local angle = 0 -- Control del giro orbital
 
--- NETWORK BYPASS
+-- NETWORK
 task.spawn(function()
     while true do
         if enabled then
@@ -38,9 +38,9 @@ task.spawn(function()
     end
 end)
 
--- INTERFAZ VERDE ORIGINAL (CORREGIDA)
+-- INTERFAZ VERDE ORIGINAL (TU DISEÑO EXACTO)
 local gui = Instance.new("ScreenGui")
-gui.Name = "FocusPart_Classic_Vortex"
+gui.Name = "FocusPart_Fixed_Final"
 gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
@@ -53,10 +53,9 @@ frame.ClipsDescendants = true
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
 
 local stroke = Instance.new("UIStroke", frame)
-stroke.Color = Color3.fromRGB(0, 255, 120)
+stroke.Color = Color3.fromRGB(0, 255, 120) -- VERDE ORIGINAL
 stroke.Thickness = 2
 
--- BARRA DE TÍTULO MOVIBLE
 local titleBar = Instance.new("Frame", frame)
 titleBar.Size = UDim2.new(1, 0, 0, 35)
 titleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -79,7 +78,6 @@ titleLabel.Font = Enum.Font.GothamBlack
 titleLabel.TextSize = 13
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
--- BOTONES X Y -
 local function createBtn(txt, x, color)
     local b = Instance.new("TextButton", titleBar)
     b.Size = UDim2.new(0, 28, 0, 28)
@@ -92,7 +90,7 @@ end
 local close = createBtn("X", -32, Color3.fromRGB(255, 50, 50))
 local min = createBtn("-", -62, Color3.fromRGB(0, 255, 120))
 
--- ARRASTRAR LÓGICA
+-- ARRASTRAR
 local dragging, dStart, sPos
 titleBar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging=true; dStart=i.Position; sPos=frame.Position end end)
 UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
@@ -101,7 +99,6 @@ UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.Use
 end end)
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging=false end end)
 
--- CONTENEDOR (PARA EVITAR BUGS AL MINIMIZAR)
 local mainItems = Instance.new("Frame", frame)
 mainItems.Size = UDim2.new(1, 0, 1, -35)
 mainItems.Position = UDim2.new(0, 0, 0, 35)
@@ -120,24 +117,27 @@ huntBtn.TextColor3 = Color3.fromRGB(0, 255, 120); huntBtn.Font = Enum.Font.Gotha
 Instance.new("UICorner", huntBtn).CornerRadius = UDim.new(0, 6)
 
 local status = Instance.new("TextLabel", mainItems)
-status.Size = UDim2.new(1, 0, 0, 20); status.Position = UDim2.new(0, 0, 1, -25); status.BackgroundTransparency = 1
-status.Text = "SYSTEM IDLE"; status.TextColor3 = Color3.fromRGB(100, 100, 100); status.Font = Enum.Font.Code; status.TextSize = 10
+status.Size = UDim2.new(1, 0, 0, 20); status.Position = UDim2.new(0, 0, 1, -25)
+status.BackgroundTransparency = 1; status.Text = "SYSTEM IDLE"; status.TextColor3 = Color3.fromRGB(100, 100, 100)
+status.Font = Enum.Font.Code; status.TextSize = 10
 
--- LÓGICA DE MINIMIZAR ESTABLE
+-- LÓGICA DE MINIMIZAR
 local minned = false
 min.MouseButton1Click:Connect(function()
     minned = not minned
     if minned then
         mainItems.Visible = false
-        frame:TweenSize(UDim2.new(0, 280, 0, 35), "Out", "Quad", 0.2, true)
+        frame:TweenSize(UDim2.new(0, 280, 0, 35), "Out", "Quad", 0.25, true)
         min.Text = "+"
     else
-        frame:TweenSize(UDim2.new(0, 280, 0, 220), "Out", "Quad", 0.2, true, function() mainItems.Visible = true end)
+        frame:TweenSize(UDim2.new(0, 280, 0, 220), "Out", "Quad", 0.25, true, function()
+            mainItems.Visible = true
+        end)
         min.Text = "-"
     end
 end)
 
--- ESCANEO
+-- SISTEMA DE FÍSICA
 local function getParts()
     if tick() - lastScan < settings.scanRate then return parts end
     lastScan = tick()
@@ -154,7 +154,17 @@ local function getParts()
     parts = found; return parts
 end
 
--- HEARTBEAT: FÍSICA CENTRIFUGADORA
+local function findAttacker(partPos)
+    local nearest = nil; local minDist = math.huge
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local dist = (p.Character.HumanoidRootPart.Position - partPos).Magnitude
+            if dist < minDist and dist < 200 then minDist = dist; nearest = p end
+        end
+    end
+    return nearest
+end
+
 RunService.Heartbeat:Connect(function(dt)
     if not enabled or not targetPlayer or not targetPlayer.Character then return end
     local hrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -162,55 +172,63 @@ RunService.Heartbeat:Connect(function(dt)
     if not hrp or not myHRP then return end
 
     angle = angle + (dt * settings.rotationSpeed)
-    local targetBasePos = hrp.Position + (hrp.Velocity * settings.prediction)
+    local pPos = hrp.Position + (hrp.Velocity * settings.prediction)
     local currentParts = getParts()
 
     for i, part in ipairs(currentParts) do
         if part.Parent then
             local distToMe = (part.Position - myHRP.Position).Magnitude
             
-            -- CONTRAATAQUE (SIEMPRE ACTIVO)
+            -- CONTRAATAQUE (IGUAL AL ORIGINAL PERO MÁS FUERTE)
             if distToMe < settings.safeDistance then
-                local counterDir = (hrp.Position - part.Position).Unit
-                part.AssemblyLinearVelocity = counterDir * (settings.force * 2.5) + Vector3.new(0, 50, 0)
-                continue
+                local toMe = (myHRP.Position - part.Position).Unit
+                if part.AssemblyLinearVelocity:Dot(toMe) > 30 then
+                    local attacker = findAttacker(part.Position) or targetPlayer
+                    if attacker.Character then
+                        local counterVec = (attacker.Character.HumanoidRootPart.Position - part.Position)
+                        part.AssemblyLinearVelocity = counterVec.Unit * (settings.force * 2.5) + Vector3.new(0, 45, 0)
+                        status.Text = "COUNTER!"
+                        continue
+                    end
+                end
             end
 
             -- ÓRBITA DISTANCIA 1 + GIRO MASIVO INDIVIDUAL
             local offsetAngle = angle + (i * (math.pi * 2 / #currentParts))
-            local targetOrbitPos = targetBasePos + Vector3.new(math.cos(offsetAngle) * settings.orbitDist, math.random(-1, 3), math.sin(offsetAngle) * settings.orbitDist)
+            local targetOrbitPos = pPos + Vector3.new(math.cos(offsetAngle) * settings.orbitDist, math.random(-1, 3), math.sin(offsetAngle) * settings.orbitDist)
             
             local direction = (targetOrbitPos - part.Position)
             
-            -- Fuerza centrífuga y seguimiento
-            part.AssemblyLinearVelocity = direction * 30 + (hrp.Velocity * 1.3)
-            part.AssemblyAngularVelocity = Vector3.new(settings.selfSpinSpeed, settings.selfSpinSpeed, settings.selfSpinSpeed)
-            
-            -- Asegurar que no se despeguen si el objetivo corre
-            if direction.Magnitude > 4 then
-                part.AssemblyLinearVelocity = direction.Unit * settings.force
-            end
+            -- Mantenerlo pegado al enemigo y heredar su velocidad
+            part.AssemblyLinearVelocity = direction * 35 + (hrp.Velocity * 1.2)
+            -- GIRO INDIVIDUAL SOBRE SÍ MISMA (Para expulsar al enemigo)
+            part.AssemblyAngularVelocity = Vector3.new(500, 500, 500)
         end
     end
 end)
 
--- BOTÓN DE ATAQUE
 huntBtn.MouseButton1Click:Connect(function()
     if not enabled then
         local t = targetBox.Text:lower()
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= player and (p.Name:lower():find(t) or p.DisplayName:lower():find(t)) then
-                targetPlayer = p; targetBox.Text = p.Name; enabled = true
-                huntBtn.Text = "STOP OBLITERATION"; huntBtn.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
-                status.Text = "LOCK-ON: " .. p.Name:upper()
-                return
+        if #t >= 3 then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= player and (p.Name:lower():find(t) or p.DisplayName:lower():find(t)) then
+                    targetPlayer = p; targetBox.Text = p.Name; enabled = true
+                    huntBtn.Text = "OBLITERATING: " .. p.Name:upper(); huntBtn.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
+                    status.Text = "LOCK-ON ESTABLISHED"
+                    return
+                end
             end
         end
-        status.Text = "TARGET NOT FOUND"
+        status.Text = "ERROR: TARGET NOT FOUND"
     else
         enabled = false; huntBtn.Text = "READY TO SCAN"; huntBtn.BackgroundColor3 = Color3.fromRGB(0, 30, 10); status.Text = "SYSTEM IDLE"
     end
 end)
 
-close.MouseButton1Click:Connect(function() enabled = false; gui:Destroy() end)
+close.MouseButton1Click:Connect(function() 
+    enabled = false
+    gui:Destroy() 
+end)
+
 player.CharacterAdded:Connect(function(c) character = c end)
