@@ -6,13 +6,13 @@ local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 
--- CONFIGURACIÓN DINÁMICA
+-- CONFIGURACIÓN POTENCIADA
 local settings = {
-    force = 1600,
-    radius = 280,
-    prediction = 0.18, 
-    maxParts = 85, -- Optimizado para balance de daño/lag
-    scanRate = 0.25,
+    force = 1800,
+    radius = 450, -- RADIO AGRANDADO
+    prediction = 0.22, 
+    maxParts = 120, 
+    scanRate = 0.3,
     targetName = ""
 }
 
@@ -21,170 +21,165 @@ local targetPlayer = nil
 local enabled = false
 local lastScan = 0
 
--- SEGURIDAD: NETWORK OWNER JITTER (Menos detectable)
+-- SEGURIDAD & NETWORK (RE-SYNC CONSTANTE)
 task.spawn(function()
-    while task.wait(0.2) do
+    while task.wait(0.1) do
         if enabled then
             pcall(function()
-                -- Varía el radio ligeramente para engañar escaneos estáticos del Anti-Cheat
-                local jitter = math.random(100, 500)
-                sethiddenproperty(player, "SimulationRadius", 1e8 + jitter)
-                sethiddenproperty(player, "MaxSimulationRadius", 1e8 + jitter)
+                settings.targetName = settings.targetName
+                sethiddenproperty(player, "SimulationRadius", 1e9)
+                sethiddenproperty(player, "MaxSimulationRadius", 1e10)
             end)
         end
     end
 end)
 
--- INTERFAZ MODERNA (NEGRO/VERDE)
+-- INTERFAZ PROFESIONAL V4.2
 local gui = Instance.new("ScreenGui")
-gui.Name = "FocusPartV4_Final"
+gui.Name = "FocusPart_Ultra"
 gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 260, 0, 200)
-frame.Position = UDim2.new(0.5, -130, 0.5, -100)
-frame.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+frame.Size = UDim2.new(0, 280, 0, 220)
+frame.Position = UDim2.new(0.5, -140, 0.5, -110)
+frame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 frame.BorderSizePixel = 0
-frame.ClipsDescendants = true
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
 
-local uiStroke = Instance.new("UIStroke", frame)
-uiStroke.Color = Color3.fromRGB(0, 255, 120)
-uiStroke.Thickness = 1.8
+-- Borde Neón
+local stroke = Instance.new("UIStroke", frame)
+stroke.Color = Color3.fromRGB(0, 255, 120)
+stroke.Thickness = 2
+stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- BARRA DE TÍTULO (FOCUS-PART)
-local titleBar = Instance.new("TextLabel", frame)
-titleBar.Size = UDim2.new(1, 0, 0, 32)
-titleBar.BackgroundColor3 = Color3.fromRGB(15, 35, 15)
-titleBar.Text = "   FOCUS-PART V4.1"
-titleBar.TextColor3 = Color3.fromRGB(0, 255, 120)
-titleBar.Font = Enum.Font.GothamBold
-titleBar.TextSize = 13
-titleBar.TextXAlignment = Enum.TextXAlignment.Left
+-- Barra Superior con Gradiente
+local titleBar = Instance.new("Frame", frame)
+titleBar.Size = UDim2.new(1, 0, 0, 35)
+titleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+titleBar.BorderSizePixel = 0
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
 
--- BOTONES DE CONTROL
-local function createTitleBtn(text, pos, color)
-    local btn = Instance.new("TextButton", titleBar)
-    btn.Size = UDim2.new(0, 28, 0, 28)
-    btn.Position = pos
-    btn.Text = text
-    btn.TextColor3 = color
-    btn.BackgroundTransparency = 1
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 16
-    return btn
+local gradient = Instance.new("UIGradient", titleBar)
+gradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 60, 30)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(5, 15, 5))
+}
+
+local titleLabel = Instance.new("TextLabel", titleBar)
+titleLabel.Size = UDim2.new(1, -70, 1, 0)
+titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "SYSTEM // FOCUS-PART"
+titleLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
+titleLabel.Font = Enum.Font.GothamBlack
+titleLabel.TextSize = 13
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Botones Control
+local function createBtn(txt, x, color)
+    local b = Instance.new("TextButton", titleBar)
+    b.Size = UDim2.new(0, 28, 0, 28)
+    b.Position = UDim2.new(1, x, 0.5, -14)
+    b.Text = txt
+    b.TextColor3 = color
+    b.BackgroundTransparency = 1
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 16
+    return b
 end
 
-local minBtn = createTitleBtn("-", UDim2.new(1, -30, 0, 2), Color3.fromRGB(0, 255, 120))
-local closeBtn = createTitleBtn("X", UDim2.new(1, -60, 0, 2), Color3.fromRGB(255, 80, 80))
+local close = createBtn("X", -32, Color3.fromRGB(255, 50, 50))
+local min = createBtn("-", -62, Color3.fromRGB(0, 255, 120))
 
--- MOVIMIENTO ARRASTRABLE
-local dragging, dragStart, startPos
-titleBar.InputBegan:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true; dragStart = i.Position; startPos = frame.Position
-    end
-end)
-UIS.InputChanged:Connect(function(i)
-    if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
-        local delta = i.Position - dragStart
-        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+-- Arrastrar
+local dragging, dStart, sPos
+titleBar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging=true; dStart=i.Position; sPos=frame.Position end end)
+UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+    local delta = i.Position - dStart
+    frame.Position = UDim2.new(sPos.X.Scale, sPos.X.Offset + delta.X, sPos.Y.Scale, sPos.Y.Offset + delta.Y)
+end end)
+UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging=false end end)
 
--- CUADRO DE BÚSQUEDA
+-- Input Box
 local targetBox = Instance.new("TextBox", frame)
-targetBox.Size = UDim2.new(0.9, 0, 0, 32)
-targetBox.Position = UDim2.new(0.05, 0, 0, 48)
-targetBox.PlaceholderText = "Nombre (3+ letras)..."
-targetBox.Text = ""
+targetBox.Size = UDim2.new(0.9, 0, 0, 35)
+targetBox.Position = UDim2.new(0.05, 0, 0, 50)
+targetBox.PlaceholderText = "ID / NAME / 3 LETTERS"
 targetBox.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 targetBox.TextColor3 = Color3.fromRGB(0, 255, 120)
-targetBox.Font = Enum.Font.Gotham
+targetBox.Font = Enum.Font.Code
 targetBox.TextSize = 14
 Instance.new("UICorner", targetBox).CornerRadius = UDim.new(0, 6)
 
--- BOTÓN DE ATAQUE
-local toggleBtn = Instance.new("TextButton", frame)
-toggleBtn.Size = UDim2.new(0.9, 0, 0, 42)
-toggleBtn.Position = UDim2.new(0.05, 0, 0, 95)
-toggleBtn.Text = "INICIAR HUNT"
-toggleBtn.BackgroundColor3 = Color3.fromRGB(10, 50, 10)
-toggleBtn.TextColor3 = Color3.fromRGB(0, 255, 120)
-toggleBtn.Font = Enum.Font.GothamBlack
-toggleBtn.TextSize = 15
-Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 6)
+-- Botón Principal
+local huntBtn = Instance.new("TextButton", frame)
+huntBtn.Size = UDim2.new(0.9, 0, 0, 50)
+huntBtn.Position = UDim2.new(0.05, 0, 0, 100)
+huntBtn.Text = "READY TO SCAN"
+huntBtn.BackgroundColor3 = Color3.fromRGB(0, 30, 10)
+huntBtn.TextColor3 = Color3.fromRGB(0, 255, 120)
+huntBtn.Font = Enum.Font.GothamBlack
+huntBtn.TextSize = 16
+Instance.new("UICorner", huntBtn).CornerRadius = UDim.new(0, 6)
 
--- LÓGICA DE AUTOCOMPLETADO Y BOTONES
-local function getTarget()
-    local text = targetBox.Text:lower()
-    if #text >= 3 then
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= player and (plr.Name:lower():find(text) or plr.DisplayName:lower():find(text)) then
-                return plr
+-- Status Label
+local status = Instance.new("TextLabel", frame)
+status.Size = UDim2.new(1, 0, 0, 20)
+status.Position = UDim2.new(0, 0, 1, -25)
+status.BackgroundTransparency = 1
+status.Text = "SYSTEM IDLE"
+status.TextColor3 = Color3.fromRGB(100, 100, 100)
+status.Font = Enum.Font.Code
+status.TextSize = 10
+
+-- LÓGICA DE BÚSQUEDA
+huntBtn.MouseButton1Click:Connect(function()
+    if not enabled then
+        local t = targetBox.Text:lower()
+        if #t >= 3 then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= player and (p.Name:lower():find(t) or p.DisplayName:lower():find(t)) then
+                    targetPlayer = p
+                    targetBox.Text = p.Name
+                    enabled = true
+                    huntBtn.Text = "ATTACKING: " .. p.Name:upper()
+                    huntBtn.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
+                    status.Text = "LOCK-ON ESTABLISHED"
+                    return
+                end
             end
         end
-    end
-    return nil
-end
-
-toggleBtn.MouseButton1Click:Connect(function()
-    if not enabled then
-        local found = getTarget()
-        if found then
-            targetPlayer = found
-            targetBox.Text = found.Name
-            enabled = true
-            toggleBtn.Text = "HUNTING: " .. found.Name:upper()
-            toggleBtn.BackgroundColor3 = Color3.fromRGB(70, 0, 0)
-        else
-            targetBox.Text = "¡No encontrado!"
-            task.wait(1)
-            targetBox.Text = ""
-        end
+        status.Text = "ERROR: TARGET NOT FOUND"
     else
         enabled = false
-        toggleBtn.Text = "INICIAR HUNT"
-        toggleBtn.BackgroundColor3 = Color3.fromRGB(10, 50, 10)
+        huntBtn.Text = "READY TO SCAN"
+        huntBtn.BackgroundColor3 = Color3.fromRGB(0, 30, 10)
+        status.Text = "SYSTEM IDLE"
     end
 end)
 
-local minimized = false
-minBtn.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    frame:TweenSize(UDim2.new(0, 260, 0, minimized and 32 or 200), "Out", "Quad", 0.3, true)
-    minBtn.Text = minimized and "+" or "-"
-end)
-
-closeBtn.MouseButton1Click:Connect(function()
-    enabled = false
-    gui:Destroy()
-end)
-
--- SISTEMA DE FÍSICA MEJORADO (ANTI-GLITCH)
+-- LÓGICA DE FÍSICA MEJORADA
 local function getParts()
     if tick() - lastScan < settings.scanRate then return parts end
     lastScan = tick()
     
     local found = {}
     local op = OverlapParams.new()
-    op.FilterDescendantsInstances = {character, (targetPlayer and targetPlayer.Character)}
+    op.FilterDescendantsInstances = {character}
     op.FilterType = Enum.RaycastFilterType.Exclude
 
     local nearby = workspace:GetPartBoundsInRadius(character:GetPivot().Position, settings.radius, op)
     local count = 0
     for _, v in ipairs(nearby) do
         if count >= settings.maxParts then break end
-        if v:IsA("BasePart") and not v.Anchored and not v.Parent:FindFirstChild("Humanoid") then
-            -- Solo partes físicas reales (ignora efectos visuales o UI en el workspace)
-            if v.Transparency < 1 and v.Size.Magnitude > 0.5 then
-                v.CanCollide = false 
-                v.Massless = true
-                table.insert(found, v)
-                count = count + 1
-            end
+        -- FILTRO REAL: Solo partes que tengan colisión y no sean hijos de otros jugadores
+        if v:IsA("BasePart") and not v.Anchored and v.CanCollide and not v.Parent:FindFirstChild("Humanoid") then
+            -- "Despertar" la física (Truco para Network Ownership)
+            v.Velocity = Vector3.new(0, 0.1, 0) 
+            v.Massless = true
+            table.insert(found, v)
+            count = count + 1
         end
     end
     parts = found
@@ -196,22 +191,26 @@ RunService.Heartbeat:Connect(function()
     local hrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- Predicción dinámica basada en velocidad del objetivo
     local pPos = hrp.Position + (hrp.Velocity * settings.prediction)
     local currentParts = getParts()
 
     for _, part in ipairs(currentParts) do
         if part.Parent then
             local vector = (pPos - part.Position)
-            local dist = vector.Magnitude
-            
-            -- Aplicación de fuerza suavizada para mayor impacto físico
-            -- Evita que las piezas se queden pegadas al suelo
-            local lift = Vector3.new(0, 22, 0)
-            part.AssemblyLinearVelocity = vector.Unit * settings.force + lift
-            part.AssemblyAngularVelocity = Vector3.new(math.random(-15,15), math.random(-15,15), math.random(-15,15))
+            -- Fuerza Dinámica: aumenta con la distancia
+            local forceMag = settings.force + (vector.Magnitude * 2)
+            part.AssemblyLinearVelocity = vector.Unit * forceMag + Vector3.new(0, 25, 0)
+            part.AssemblyAngularVelocity = Vector3.new(math.random(-20,20), math.random(-20,20), math.random(-20,20))
         end
     end
+end)
+
+close.MouseButton1Click:Connect(function() gui:Destroy(); enabled = false end)
+local minned = false
+min.MouseButton1Click:Connect(function()
+    minned = not minned
+    frame:TweenSize(UDim2.new(0, 280, 0, minned and 35 or 220), "Out", "Quad", 0.3, true)
+    min.Text = minned and "+" or "-"
 end)
 
 player.CharacterAdded:Connect(function(c) character = c end)
