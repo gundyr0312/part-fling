@@ -6,7 +6,7 @@ local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 
--- CONFIGURACIÓN
+-- CONFIGURACIÓN (Mantenida exactamente igual)
 local settings = {
     force = 1800,
     radius = 650,
@@ -38,9 +38,9 @@ task.spawn(function()
     end
 end)
 
--- INTERFAZ
+-- INTERFAZ CORREGIDA
 local gui = Instance.new("ScreenGui")
-gui.Name = "FocusPart_Ultra"
+gui.Name = "FocusPart_Ultra_Fixed"
 gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
@@ -49,15 +49,24 @@ frame.Size = UDim2.new(0, 280, 0, 220)
 frame.Position = UDim2.new(0.5, -140, 0.5, -110)
 frame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 frame.BorderSizePixel = 0
+frame.ClipsDescendants = true -- Clave para evitar el bug visual
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
 
 local stroke = Instance.new("UIStroke", frame)
 stroke.Color = Color3.fromRGB(0, 255, 120)
 stroke.Thickness = 2
 
+-- Contenedor Principal (Para ocultar elementos al minimizar)
+local mainContent = Instance.new("Frame", frame)
+mainContent.Size = UDim2.new(1, 0, 1, -35)
+mainContent.Position = UDim2.new(0, 0, 0, 35)
+mainContent.BackgroundTransparency = 1
+mainContent.BorderSizePixel = 0
+
 local titleBar = Instance.new("Frame", frame)
 titleBar.Size = UDim2.new(1, 0, 0, 35)
 titleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+titleBar.BorderSizePixel = 0
 Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
 
 local gradient = Instance.new("UIGradient", titleBar)
@@ -91,6 +100,7 @@ end
 local close = createBtn("X", -32, Color3.fromRGB(255, 50, 50))
 local min = createBtn("-", -62, Color3.fromRGB(0, 255, 120))
 
+-- Arrastrar
 local dragging, dStart, sPos
 titleBar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging=true; dStart=i.Position; sPos=frame.Position end end)
 UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
@@ -99,9 +109,9 @@ UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.Use
 end end)
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging=false end end)
 
-local targetBox = Instance.new("TextBox", frame)
+local targetBox = Instance.new("TextBox", mainContent) -- Ahora en mainContent
 targetBox.Size = UDim2.new(0.9, 0, 0, 35)
-targetBox.Position = UDim2.new(0.05, 0, 0, 50)
+targetBox.Position = UDim2.new(0.05, 0, 0, 15)
 targetBox.PlaceholderText = "ID / NAME / 3 LETTERS"
 targetBox.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 targetBox.TextColor3 = Color3.fromRGB(0, 255, 120)
@@ -109,9 +119,9 @@ targetBox.Font = Enum.Font.Code
 targetBox.TextSize = 14
 Instance.new("UICorner", targetBox).CornerRadius = UDim.new(0, 6)
 
-local huntBtn = Instance.new("TextButton", frame)
-huntBtn.Size = UDim2.new(0.9, 0, 0, 50)
-huntBtn.Position = UDim2.new(0.05, 0, 0, 100)
+local huntBtn = Instance.new("TextButton", mainContent) -- Ahora en mainContent
+huntBtn.Size = UDim2.new(0, 252, 0, 50)
+huntBtn.Position = UDim2.new(0.05, 0, 0, 65)
 huntBtn.Text = "READY TO SCAN"
 huntBtn.BackgroundColor3 = Color3.fromRGB(0, 30, 10)
 huntBtn.TextColor3 = Color3.fromRGB(0, 255, 120)
@@ -119,7 +129,7 @@ huntBtn.Font = Enum.Font.GothamBlack
 huntBtn.TextSize = 16
 Instance.new("UICorner", huntBtn).CornerRadius = UDim.new(0, 6)
 
-local status = Instance.new("TextLabel", frame)
+local status = Instance.new("TextLabel", mainContent) -- Ahora en mainContent
 status.Size = UDim2.new(1, 0, 0, 20)
 status.Position = UDim2.new(0, 0, 1, -25)
 status.BackgroundTransparency = 1
@@ -128,6 +138,7 @@ status.TextColor3 = Color3.fromRGB(100, 100, 100)
 status.Font = Enum.Font.Code
 status.TextSize = 10
 
+-- LÓGICA DE INTERACCIÓN
 huntBtn.MouseButton1Click:Connect(function()
     if not enabled then
         local t = targetBox.Text:lower()
@@ -155,15 +166,30 @@ huntBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- MINIMIZAR FIX
+local minned = false
+min.MouseButton1Click:Connect(function()
+    minned = not minned
+    if minned then
+        mainContent.Visible = false -- Oculta todo antes de encoger
+        frame:TweenSize(UDim2.new(0, 280, 0, 35), "Out", "Quad", 0.3, true)
+        min.Text = "+"
+    else
+        frame:TweenSize(UDim2.new(0, 280, 0, 220), "Out", "Quad", 0.3, true, function()
+            mainContent.Visible = true -- Muestra solo cuando termina de agrandar
+        end)
+        min.Text = "-"
+    end
+end)
+
+-- LÓGICA DE FÍSICA (Mantenida exactamente igual)
 local function getParts()
     if tick() - lastScan < settings.scanRate then return parts end
     lastScan = tick()
-    
     local found = {}
     local op = OverlapParams.new()
     op.FilterDescendantsInstances = {character}
     op.FilterType = Enum.RaycastFilterType.Exclude
-
     local nearby = workspace:GetPartBoundsInRadius(character:GetPivot().Position, settings.radius, op)
     local count = 0
     for _, v in ipairs(nearby) do
@@ -179,7 +205,6 @@ local function getParts()
     return parts
 end
 
--- FUNCIÓN PARA ENCONTRAR ATACANTE
 local function findAttacker(partPos)
     local nearest = nil
     local minDist = math.huge
@@ -197,7 +222,6 @@ end
 
 RunService.Heartbeat:Connect(function()
     if not enabled or not targetPlayer or not targetPlayer.Character then return end
-    
     local hrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
     local myHRP = character:FindFirstChild("HumanoidRootPart")
     if not hrp or not myHRP then return end
@@ -223,13 +247,10 @@ RunService.Heartbeat:Connect(function()
         if part.Parent then
             local distToMe = (part.Position - myPos).Magnitude
             local partVel = part.AssemblyLinearVelocity
-            
             if distToMe < settings.safeDistance then
                 local toPlayer = (myPos - part.Position).Unit
                 local incomingSpeed = partVel:Dot(toPlayer)
-                
                 if incomingSpeed > 30 then
-                    -- CONTRAATAQUE AUTOMÁTICO
                     local attacker = findAttacker(part.Position) or targetPlayer
                     if attacker.Character then
                         local attackerPos = attacker.Character.HumanoidRootPart.Position
@@ -260,18 +281,9 @@ end)
 close.MouseButton1Click:Connect(function() 
     enabled = false
     for _,p in ipairs(parts) do 
-        if p and p.Parent then 
-            p.AssemblyLinearVelocity = Vector3.new(0,-80,0) 
-        end 
+        if p and p.Parent then p.AssemblyLinearVelocity = Vector3.new(0,-80,0) end 
     end
     gui:Destroy() 
-end)
-
-local minned = false
-min.MouseButton1Click:Connect(function()
-    minned = not minned
-    frame:TweenSize(UDim2.new(0, 280, 0, minned and 35 or 220), "Out", "Quad", 0.3, true)
-    min.Text = minned and "+" or "-"
 end)
 
 player.CharacterAdded:Connect(function(c) character = c end)
