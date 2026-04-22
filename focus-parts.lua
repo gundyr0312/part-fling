@@ -42,7 +42,7 @@ end)
 
 -- INTERFAZ
 local gui = Instance.new("ScreenGui")
-gui.Name = "Focus_Moveable_V5"
+gui.Name = "Focus_MoveFixed_V6"
 gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
@@ -51,7 +51,7 @@ frame.Size = UDim2.new(0, 280, 0, 220)
 frame.Position = UDim2.new(0.5, -140, 0.5, -110)
 frame.BackgroundColor3 = Color3.fromRGB(5, 5, 5)
 frame.BorderSizePixel = 0
-frame.Active = true -- Permite interacciones de ratón
+frame.Active = true -- Permite que el GUI sea interactivo
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
 
 local stroke = Instance.new("UIStroke", frame)
@@ -61,18 +61,19 @@ stroke.Thickness = 2
 local titleBar = Instance.new("Frame", frame)
 titleBar.Size = UDim2.new(1, 0, 0, 35)
 titleBar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-titleBar.Active = true -- Necesario para detectar el inicio del arrastre
+titleBar.Active = true -- Importante para el arrastre
 
 local titleLabel = Instance.new("TextLabel", titleBar)
 titleLabel.Size = UDim2.new(1, -70, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "SYSTEM // OVERKILL-MOVE"
+titleLabel.Text = "SYSTEM // OVERKILL-FIXED"
 titleLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
 titleLabel.Font = Enum.Font.GothamBlack
 titleLabel.TextSize = 13
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
+-- CONTADOR
 local killCounter = Instance.new("TextLabel", frame)
 killCounter.Size = UDim2.new(1, 0, 0, 20)
 killCounter.Position = UDim2.new(0, 0, 1, -45)
@@ -116,20 +117,15 @@ status.Size = UDim2.new(1, 0, 0, 20); status.Position = UDim2.new(0, 0, 1, -25)
 status.BackgroundTransparency = 1; status.Text = "SYSTEM IDLE"; status.TextColor3 = Color3.fromRGB(100, 100, 100)
 status.Font = Enum.Font.Code; status.TextSize = 10
 
---- LÓGICA DE ARRASTRE (DRAGGING) ---
+--- LÓGICA DE ARRASTRE (FIXED) ---
 local dragging, dragInput, dragStart, startPos
 
-local function update(input)
-    local delta = input.Position - dragStart
-    frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
-
 titleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = true
         dragStart = input.Position
         startPos = frame.Position
-
+        
         input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 dragging = false
@@ -138,15 +134,10 @@ titleBar.InputBegan:Connect(function(input)
     end
 end)
 
-titleBar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
 UIS.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        update(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
 
