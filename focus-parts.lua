@@ -6,24 +6,26 @@ local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 
--- CONFIGURACIÓN (Lógica Overkill Integrada)
+-- CONFIGURACIÓN
 local settings = {
-    force = 2200,
+    force = 2000,
     radius = 700,
-    prediction = 0.15, 
+    prediction = 0.12, 
     maxParts = 140, 
     scanRate = 0.2,
     safeDistance = 25,
-    orbitDist = 1,        -- Distancia de órbita pedida
-    rotationSpeed = 30,   -- Velocidad del torbellino
-    targetName = ""
+    orbitDist = 0.2,
+    rotationSpeed = 10,
+    selfSpinSpeed = 500
 }
 
 local parts = {}
 local targetPlayer = nil
 local enabled = false
 local lastScan = 0
-local angle = 0 -- Control del giro orbital
+local angle = 0 
+local kills = 0 
+local lastTargetName = "" -- Para detectar cambios de objetivo
 
 -- NETWORK
 task.spawn(function()
@@ -38,9 +40,9 @@ task.spawn(function()
     end
 end)
 
--- INTERFAZ VERDE ORIGINAL (TU DISEÑO EXACTO)
+-- INTERFAZ VERDE
 local gui = Instance.new("ScreenGui")
-gui.Name = "FocusPart_Fixed_Final"
+gui.Name = "FocusPart_Persistent_Lock"
 gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
@@ -53,7 +55,7 @@ frame.ClipsDescendants = true
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
 
 local stroke = Instance.new("UIStroke", frame)
-stroke.Color = Color3.fromRGB(0, 255, 120) -- VERDE ORIGINAL
+stroke.Color = Color3.fromRGB(0, 255, 120)
 stroke.Thickness = 2
 
 local titleBar = Instance.new("Frame", frame)
@@ -72,11 +74,21 @@ local titleLabel = Instance.new("TextLabel", titleBar)
 titleLabel.Size = UDim2.new(1, -70, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "SYSTEM // FOCUS-PART"
+titleLabel.Text = "SYSTEM // TARGET-LOCK"
 titleLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
 titleLabel.Font = Enum.Font.GothamBlack
 titleLabel.TextSize = 13
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local killCounter = Instance.new("TextLabel", frame)
+killCounter.Size = UDim2.new(0, 80, 0, 20)
+killCounter.Position = UDim2.new(1, -90, 0, 40)
+killCounter.BackgroundTransparency = 1
+killCounter.Text = "KILLS: 0"
+killCounter.TextColor3 = Color3.fromRGB(0, 255, 120)
+killCounter.Font = Enum.Font.Code
+killCounter.TextSize = 12
+killCounter.TextXAlignment = Enum.TextXAlignment.Right
 
 local function createBtn(txt, x, color)
     local b = Instance.new("TextButton", titleBar)
@@ -121,114 +133,75 @@ status.Size = UDim2.new(1, 0, 0, 20); status.Position = UDim2.new(0, 0, 1, -25)
 status.BackgroundTransparency = 1; status.Text = "SYSTEM IDLE"; status.TextColor3 = Color3.fromRGB(100, 100, 100)
 status.Font = Enum.Font.Code; status.TextSize = 10
 
--- LÓGICA DE MINIMIZAR
-local minned = false
-min.MouseButton1Click:Connect(function()
-    minned = not minned
-    if minned then
-        mainItems.Visible = false
-        frame:TweenSize(UDim2.new(0, 280, 0, 35), "Out", "Quad", 0.25, true)
-        min.Text = "+"
-    else
-        frame:TweenSize(UDim2.new(0, 280, 0, 220), "Out", "Quad", 0.25, true, function()
-            mainItems.Visible = true
-        end)
-        min.Text = "-"
-    end
-end)
-
--- SISTEMA DE FÍSICA
-local function getParts()
-    if tick() - lastScan < settings.scanRate then return parts end
-    lastScan = tick()
-    local found = {}
-    local op = OverlapParams.new(); op.FilterDescendantsInstances = {character}; op.FilterType = Enum.RaycastFilterType.Exclude
-    local nearby = workspace:GetPartBoundsInRadius(character:GetPivot().Position, settings.radius, op)
-    for _, v in ipairs(nearby) do
-        if #found >= settings.maxParts then break end
-        if v:IsA("BasePart") and not v.Anchored and v.CanCollide and not v.Parent:FindFirstChild("Humanoid") then
-            v.Massless = true; v.CanTouch = false
-            table.insert(found, v)
-        end
-    end
-    parts = found; return parts
-end
-
-local function findAttacker(partPos)
-    local nearest = nil; local minDist = math.huge
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            local dist = (p.Character.HumanoidRootPart.Position - partPos).Magnitude
-            if dist < minDist and dist < 200 then minDist = dist; nearest = p end
-        end
-    end
-    return nearest
-end
-
+-- MUERTE DETECTADA (Lógica persistente)
+local hasDied = false
 RunService.Heartbeat:Connect(function(dt)
-    if not enabled or not targetPlayer or not targetPlayer.Character then return end
-    local hrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-    local myHRP = character:FindFirstChild("HumanoidRootPart")
-    if not hrp or not myHRP then return end
+    if not enabled or not targetPlayer then return end
+    
+    local char = targetPlayer.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    
+    -- Detectar muerte sin apagar el script
+    if hum and hum.Health <= 0 and not hasDied then
+        hasDied = true
+        kills = kills + 1
+        killCounter.Text = "KILLS: " .. tostring(kills)
+        status.Text = "TARGET DEAD - WAITING RESPAWN"
+    elseif hum and hum.Health > 0 and hasDied then
+        hasDied = false
+        status.Text = "TARGET RESPAWNED - RELOCKING"
+    end
+
+    -- Si el objetivo no tiene cuerpo (esta muerto o cargando), no movemos piezas
+    if not hrp or hasDied then return end
 
     angle = angle + (dt * settings.rotationSpeed)
     local pPos = hrp.Position + (hrp.Velocity * settings.prediction)
-    local currentParts = getParts()
-
-    for i, part in ipairs(currentParts) do
-        if part.Parent then
-            local distToMe = (part.Position - myHRP.Position).Magnitude
+    
+    -- Movimiento de piezas (Filtro de piezas activado solo si enabled)
+    local op = OverlapParams.new(); op.FilterDescendantsInstances = {character}; op.FilterType = Enum.RaycastFilterType.Exclude
+    local nearby = workspace:GetPartBoundsInRadius(character:GetPivot().Position, settings.radius, op)
+    local count = 0
+    for _, part in ipairs(nearby) do
+        if count >= settings.maxParts then break end
+        if part:IsA("BasePart") and not part.Anchored and part.CanCollide and not part.Parent:FindFirstChild("Humanoid") then
+            part.Massless = true; part.CanTouch = false
             
-            -- CONTRAATAQUE (IGUAL AL ORIGINAL PERO MÁS FUERTE)
-            if distToMe < settings.safeDistance then
-                local toMe = (myHRP.Position - part.Position).Unit
-                if part.AssemblyLinearVelocity:Dot(toMe) > 30 then
-                    local attacker = findAttacker(part.Position) or targetPlayer
-                    if attacker.Character then
-                        local counterVec = (attacker.Character.HumanoidRootPart.Position - part.Position)
-                        part.AssemblyLinearVelocity = counterVec.Unit * (settings.force * 2.5) + Vector3.new(0, 45, 0)
-                        status.Text = "COUNTER!"
-                        continue
-                    end
-                end
-            end
-
-            -- ÓRBITA DISTANCIA 1 + GIRO MASIVO INDIVIDUAL
-            local offsetAngle = angle + (i * (math.pi * 2 / #currentParts))
-            local targetOrbitPos = pPos + Vector3.new(math.cos(offsetAngle) * settings.orbitDist, math.random(-1, 3), math.sin(offsetAngle) * settings.orbitDist)
-            
+            local offsetAngle = angle + (count * (math.pi * 2 / 20)) -- 20 es un divisor visual
+            local targetOrbitPos = pPos + Vector3.new(math.cos(offsetAngle) * settings.orbitDist, (count % 3) - 1, math.sin(offsetAngle) * settings.orbitDist)
             local direction = (targetOrbitPos - part.Position)
             
-            -- Mantenerlo pegado al enemigo y heredar su velocidad
-            part.AssemblyLinearVelocity = direction * 35 + (hrp.Velocity * 1.2)
-            -- GIRO INDIVIDUAL SOBRE SÍ MISMA (Para expulsar al enemigo)
-            part.AssemblyAngularVelocity = Vector3.new(500, 500, 500)
+            part.AssemblyLinearVelocity = direction.Unit * settings.force + (hrp.Velocity * 1.1)
+            part.AssemblyAngularVelocity = Vector3.new(settings.selfSpinSpeed, settings.selfSpinSpeed, settings.selfSpinSpeed)
+            count = count + 1
         end
     end
 end)
 
+-- BOTÓN DE ATAQUE CON RESET DE KILLS
 huntBtn.MouseButton1Click:Connect(function()
     if not enabled then
         local t = targetBox.Text:lower()
-        if #t >= 3 then
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= player and (p.Name:lower():find(t) or p.DisplayName:lower():find(t)) then
-                    targetPlayer = p; targetBox.Text = p.Name; enabled = true
-                    huntBtn.Text = "OBLITERATING: " .. p.Name:upper(); huntBtn.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
-                    status.Text = "LOCK-ON ESTABLISHED"
-                    return
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= player and (p.Name:lower():find(t) or p.DisplayName:lower():find(t)) then
+                -- Si es un objetivo nuevo, reiniciamos contador
+                if lastTargetName ~= p.Name then
+                    kills = 0
+                    killCounter.Text = "KILLS: 0"
+                    lastTargetName = p.Name
                 end
+                
+                targetPlayer = p; enabled = true
+                huntBtn.Text = "LOCK-ON: " .. p.Name:upper(); huntBtn.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
+                status.Text = "PERSISTENT TRACKING ACTIVE"
+                return
             end
         end
-        status.Text = "ERROR: TARGET NOT FOUND"
     else
         enabled = false; huntBtn.Text = "READY TO SCAN"; huntBtn.BackgroundColor3 = Color3.fromRGB(0, 30, 10); status.Text = "SYSTEM IDLE"
     end
 end)
 
-close.MouseButton1Click:Connect(function() 
-    enabled = false
-    gui:Destroy() 
-end)
-
+close.MouseButton1Click:Connect(function() enabled = false; gui:Destroy() end)
 player.CharacterAdded:Connect(function(c) character = c end)
